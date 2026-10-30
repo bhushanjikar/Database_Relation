@@ -1,7 +1,11 @@
 package com.example.jpademo.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
 
@@ -13,7 +17,11 @@ import java.util.List;
  *   Post * ---- 1 User   Many-to-One    OWNING side  -> FK column  post.user_id
  *   Post * ---- * Tag    Many-to-Many   OWNING side  -> join table post_tags(post_id, tag_id)
  */
+// Lombok: @Getter / @Setter / @NoArgsConstructor replace the hand-written accessors and the empty constructor.
 @Entity
+@Getter
+@Setter
+@NoArgsConstructor
 public class Post {
     // Primary key (MySQL AUTO_INCREMENT)
     @Id
@@ -51,69 +59,26 @@ public class Post {
     // Post owns the relation, so add / remove tags HERE (post.getTags().add(tag)) to insert /
     // delete rows in post_tags.
     //
-    // cascade = PERSIST + MERGE   (this was CascadeType.ALL before)
-    //   ALL also contains REMOVE. With REMOVE, deleting one Post would also try to delete its Tags,
-    //   but a Tag is SHARED with other Posts -> foreign-key error, or the shared tag silently
-    //   disappears for everybody. PERSIST + MERGE still allow "save a new Post together with new Tags".
+    // cascade = PERSIST + MERGE   (REMOVE is NOT part of it)
+    //   A Tag is SHARED with other Posts, so a REMOVE cascade would fail with a foreign-key error
+    //   (the other posts' rows in post_tags still point to the tag). The rule "deleting a post also
+    //   deletes its tags" is done in PostService.deletePost -> TagService.deleteTag, which first
+    //   detaches the tag from every post that uses it and then deletes it.
     //
-    // @JsonIgnore -> tags are not printed with the post, and cannot be sent inside a JSON body.
-    //                Attach them with PostService.addTagToPost(...) / createPost(..., tagIds).
+    // @JsonProperty(access = READ_ONLY) -> tags ARE printed with the post (so you can see them in GET
+    //                responses) but a "tags" field in an incoming JSON body is ignored.
+    //                Attach tags with createPost(..., tagIds) / PostService.addTagToPost(...).
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "post_tags",
             joinColumns = @JoinColumn(name = "post_id"),
             inverseJoinColumns = @JoinColumn(name = "tag_id")
     )
-    @JsonIgnore
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private List<Tag> tags;
-
-    // JPA needs a no-argument constructor.
-    public Post() {
-    }
 
     public Post(String title, String content) {
         this.title = title;
         this.content = content;
-    }
-
-    // ---- getters & setters ----
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
-    public List<Tag> getTags() {
-        return tags;
-    }
-
-    public void setTags(List<Tag> tags) {
-        this.tags = tags;
     }
 }
